@@ -3,7 +3,12 @@ import io from "socket.io-client";
 import confetti from "canvas-confetti";
 import MathText from "./MathText";
 
-const socket = io("http://localhost:5000");
+// إحضار الرابط من متغيرات البيئة أو استخدام رابط السيرفر المباشر كخيار احتياطي
+const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'https://chap-gentle-rabbit.abasthan.app';
+
+const socket = io(SERVER_URL, {
+  transports: ['websocket', 'polling']
+});
 
 // مكون نافذة المحادثة
 function ChatWindow({ pin, nickname }) {
