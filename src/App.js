@@ -9,7 +9,7 @@ const socket = io(SERVER_URL, {
   transports: ['websocket', 'polling']
 });
 
-// مكون نافذة المحادثة
+// مكون نافذة المحادثة المحدث
 function ChatWindow({ pin, nickname }) {
   const [messages, setMessages] = useState([]);
   const [inputMsg, setInputMsg] = useState("");
@@ -39,21 +39,21 @@ function ChatWindow({ pin, nickname }) {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
+    <>
       {!isOpen ? (
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-full shadow-2xl flex items-center gap-2 font-bold transition transform hover:scale-105"
+          className="chat-toggle-btn bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-bold transition transform hover:scale-105 text-sm"
         >
           💬 الدردشة ({messages.length})
         </button>
       ) : (
-        <div className="bg-white text-gray-900 w-80 h-96 rounded-2xl shadow-2xl flex flex-col border-2 border-purple-600 overflow-hidden">
-          <div className="bg-purple-700 text-white p-3 flex justify-between items-center font-bold">
+        <div className="chat-centered-modal bg-white text-gray-900 rounded-2xl border-2 border-purple-600 overflow-hidden">
+          <div className="bg-purple-700 text-white p-3 flex justify-between items-center font-bold text-sm">
             <span>💬 محادثة الغرفة</span>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-white hover:text-gray-300 font-bold text-xl px-2"
+              className="text-white hover:text-gray-300 font-bold text-lg px-2"
             >
               ✕
             </button>
@@ -111,7 +111,7 @@ function ChatWindow({ pin, nickname }) {
           </form>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
