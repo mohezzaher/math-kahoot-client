@@ -49,7 +49,6 @@ function ChatWindow({ pin, nickname }) {
         </button>
       ) : (
         <div className="bg-white text-gray-900 w-80 h-96 rounded-2xl shadow-2xl flex flex-col border-2 border-purple-600 overflow-hidden">
-          {/* رأس الشات */}
           <div className="bg-purple-700 text-white p-3 flex justify-between items-center font-bold">
             <span>💬 محادثة الغرفة</span>
             <button
@@ -60,7 +59,6 @@ function ChatWindow({ pin, nickname }) {
             </button>
           </div>
 
-          {/* منطقة عرض الرسائل */}
           <div className="flex-1 p-3 overflow-y-auto space-y-2 bg-gray-50 dir-rtl">
             {messages.length === 0 ? (
               <p className="text-center text-gray-400 text-sm mt-8">
@@ -93,7 +91,6 @@ function ChatWindow({ pin, nickname }) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* نموذج إرسال الرسالة */}
           <form
             onSubmit={handleSendMessage}
             className="p-2 bg-gray-100 border-t flex gap-2"
@@ -128,24 +125,19 @@ function App() {
   const [questionCount, setQuestionCount] = useState(10);
   const [timer, setTimer] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [directInputText, setDirectInputText] = useState("");
   const [answerFeedback, setAnswerFeedback] = useState(null);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const soundCorrect = useRef(
-    new Audio(
-      "https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3",
-    ),
+    new Audio("https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3")
   );
   const soundWrong = useRef(
-    new Audio(
-      "https://assets.mixkit.co/active_storage/sfx/2018/2018-preview.mp3",
-    ),
+    new Audio("https://assets.mixkit.co/active_storage/sfx/2018/2018-preview.mp3")
   );
   const soundTick = useRef(
-    new Audio(
-      "https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3",
-    ),
+    new Audio("https://assets.mixkit.co/active_storage/sfx/2578/2578-preview.mp3")
   );
 
   const triggerStarsAnimation = () => {
@@ -164,22 +156,18 @@ function App() {
       setGameState("waiting");
     });
 
-    socket.on("error_message", (msg) => {
-      setErrorMessage(msg);
-    });
+    socket.on("error_message", (msg) => setErrorMessage(msg));
 
     socket.on("update_players", (updatedPlayers) => setPlayers(updatedPlayers));
 
-    socket.on(
-      "new_question",
-      ({ question, questionNumber, totalQuestions }) => {
-        setCurrentQuestion(question);
-        setQuestionMeta({ current: questionNumber, total: totalQuestions });
-        setSelectedAnswer(null);
-        setAnswerFeedback(null);
-        setGameState("quiz");
-      },
-    );
+    socket.on("new_question", ({ question, questionNumber, totalQuestions }) => {
+      setCurrentQuestion(question);
+      setQuestionMeta({ current: questionNumber, total: totalQuestions });
+      setSelectedAnswer(null);
+      setDirectInputText("");
+      setAnswerFeedback(null);
+      setGameState("quiz");
+    });
 
     socket.on("timer_tick", (timeLeft) => {
       setTimer(timeLeft);
@@ -225,12 +213,13 @@ function App() {
   const handleStartGame = () =>
     socket.emit("start_game", { pin, questionCount });
 
-  const handleAnswer = (index) => {
+  // دعم إرسال الإجابة بناءً على النوع
+  const handleSendAnswerValue = (val) => {
     if (selectedAnswer !== null) return;
-    setSelectedAnswer(index);
+    setSelectedAnswer(val);
     socket.emit("send_answer", {
       pin,
-      selectedIndex: index,
+      answer: val,
       timeRemaining: timer,
     });
   };
@@ -238,13 +227,11 @@ function App() {
   const handleInvite = () => {
     const inviteText = `انضم معي في لعبة Math Kahoot!\nرمز اللعبة (PIN): ${pin}\nالرابط: ${window.location.origin}`;
     if (navigator.share) {
-      navigator
-        .share({
-          title: "دعوة Math Kahoot",
-          text: inviteText,
-          url: window.location.origin,
-        })
-        .catch(() => {});
+      navigator.share({
+        title: "دعوة Math Kahoot",
+        text: inviteText,
+        url: window.location.origin,
+      }).catch(() => {});
     } else {
       navigator.clipboard.writeText(inviteText);
       setCopied(true);
@@ -278,9 +265,10 @@ function App() {
     ? (timer / (currentQuestion.timeLimit || 15)) * 100
     : 0;
 
+  const qType = currentQuestion?.type || "mcq";
+
   return (
     <div className="min-h-screen bg-purple-900 text-white flex flex-col items-center justify-center p-4 dir-rtl relative">
-      {/* عرض نافذة المحادثة بمجرد الانضمام للعبة */}
       {gameState !== "join" && <ChatWindow pin={pin} nickname={nickname} />}
 
       {/* 1. شاشة الانضمام */}
@@ -328,9 +316,7 @@ function App() {
 
           <div className="bg-purple-900 p-4 rounded-xl my-4 border border-purple-700 flex flex-col items-center justify-between gap-3">
             <div>
-              <span className="text-xs text-purple-300 block">
-                رمز الغرفة (PIN)
-              </span>
+              <span className="text-xs text-purple-300 block">رمز الغرفة (PIN)</span>
               <span className="text-3xl font-black tracking-widest text-yellow-400">
                 {pin}
               </span>
@@ -339,10 +325,7 @@ function App() {
               onClick={handleInvite}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-bold text-sm transition shadow"
             >
-              🔗{" "}
-              {copied
-                ? "تم نسخ بيانات الدعوة!"
-                : "دعوة أصدقاء (نسخ الرابط والـ PIN)"}
+              🔗 {copied ? "تم نسخ بيانات الدعوة!" : "دعوة أصدقاء (نسخ الرابط والـ PIN)"}
             </button>
           </div>
 
@@ -451,39 +434,103 @@ function App() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 w-full">
-            {currentQuestion.options.map((option, index) => {
-              const baseColors = [
-                "bg-red-500",
-                "bg-blue-500",
-                "bg-yellow-500",
-                "bg-green-500",
-              ];
-              let stateStyles = `${baseColors[index]} hover:opacity-90`;
+          {/* نوع الخيارات المتعددة (MCQ) */}
+          {qType === "mcq" && currentQuestion.options && (
+            <div className="grid grid-cols-2 gap-4 w-full">
+              {currentQuestion.options.map((option, index) => {
+                const baseColors = [
+                  "bg-red-500",
+                  "bg-blue-500",
+                  "bg-yellow-500",
+                  "bg-green-500",
+                ];
+                let stateStyles = `${baseColors[index % baseColors.length]} hover:opacity-90`;
 
-              if (answerFeedback) {
-                if (index === answerFeedback.correctIndex) {
-                  stateStyles = "bg-green-600 ring-4 ring-green-300 scale-105";
-                } else if (index === answerFeedback.selectedIndex) {
-                  stateStyles = "bg-red-700 opacity-60";
-                } else {
-                  stateStyles = "bg-gray-500 opacity-30";
+                if (answerFeedback) {
+                  const correctIdx = currentQuestion.correct !== undefined ? currentQuestion.correct : currentQuestion.correctIndex;
+                  if (index === correctIdx) {
+                    stateStyles = "bg-green-600 ring-4 ring-green-300 scale-105";
+                  } else if (index === selectedAnswer) {
+                    stateStyles = "bg-red-700 opacity-60";
+                  } else {
+                    stateStyles = "bg-gray-500 opacity-30";
+                  }
                 }
-              }
 
-              return (
-                <button
-                  key={index}
-                  disabled={selectedAnswer !== null}
-                  onClick={() => handleAnswer(index)}
-                  className={`${stateStyles} text-white p-6 rounded-xl text-2xl font-bold shadow-md transition-all duration-300 flex items-center justify-center gap-2`}
-                >
-                  <MathText text={option} />
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={index}
+                    disabled={selectedAnswer !== null}
+                    onClick={() => handleSendAnswerValue(index)}
+                    className={`${stateStyles} text-white p-6 rounded-xl text-2xl font-bold shadow-md transition-all duration-300 flex items-center justify-center gap-2`}
+                  >
+                    <MathText text={option} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
+          {/* نوع صح أو خطأ (True / False) */}
+          {qType === "true_false" && (
+            <div className="grid grid-cols-2 gap-6 w-full">
+              <button
+                disabled={selectedAnswer !== null}
+                onClick={() => handleSendAnswerValue("صح")}
+                className={`p-8 rounded-2xl text-3xl font-black text-white shadow-xl transition-all ${
+                  answerFeedback
+                    ? String(answerFeedback.correctAnswer).trim().toLowerCase() === "صح"
+                      ? "bg-green-600 ring-4 ring-green-300 scale-105"
+                      : "bg-gray-500 opacity-30"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                👍 صح
+              </button>
+              <button
+                disabled={selectedAnswer !== null}
+                onClick={() => handleSendAnswerValue("خطأ")}
+                className={`p-8 rounded-2xl text-3xl font-black text-white shadow-xl transition-all ${
+                  answerFeedback
+                    ? String(answerFeedback.correctAnswer).trim().toLowerCase() === "خطأ"
+                      ? "bg-green-600 ring-4 ring-green-300 scale-105"
+                      : "bg-gray-500 opacity-30"
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                👎 خطأ
+              </button>
+            </div>
+          )}
+
+          {/* نوع الإدخال المباشر (Direct Input) */}
+          {qType === "direct_input" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (directInputText.trim()) handleSendAnswerValue(directInputText.trim());
+              }}
+              className="w-full max-w-lg flex flex-col gap-4"
+            >
+              <input
+                type="text"
+                disabled={selectedAnswer !== null}
+                placeholder="اكتب إجابتك هنا..."
+                value={directInputText}
+                onChange={(e) => setDirectInputText(e.target.value)}
+                className="w-full p-4 rounded-xl text-center text-2xl font-bold text-gray-900 shadow-inner focus:outline-none focus:ring-4 focus:ring-purple-400"
+              />
+              <button
+                type="submit"
+                disabled={selectedAnswer !== null || !directInputText.trim()}
+                className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-500 text-white font-black text-xl py-4 rounded-xl shadow-lg transition"
+              >
+                إرسال الإجابة 🚀
+              </button>
+            </form>
+          )}
+
+          {/* عرض نتيجة الإجابة */}
           {answerFeedback && (
             <div className="mt-6 w-full max-w-2xl text-center font-bold text-xl">
               {answerFeedback.isCorrect ? (
@@ -498,8 +545,11 @@ function App() {
                   )}
                 </div>
               ) : (
-                <div className="bg-red-600 text-white p-4 rounded-xl shadow-lg">
-                  ❌ إجابة خاطئة!
+                <div className="bg-red-600 text-white p-4 rounded-xl shadow-lg flex flex-col gap-1">
+                  <span>❌ إجابة خاطئة!</span>
+                  <span className="text-sm font-normal text-red-100">
+                    الإجابة الصحيحة هي: {String(answerFeedback.correctAnswer)}
+                  </span>
                 </div>
               )}
             </div>
@@ -519,7 +569,11 @@ function App() {
               .map((p, i) => (
                 <div
                   key={i}
-                  className={`flex justify-between items-center p-4 rounded-xl font-bold ${i === 0 ? "bg-yellow-100 border-2 border-yellow-400 text-yellow-900 text-xl" : "bg-purple-50"}`}
+                  className={`flex justify-between items-center p-4 rounded-xl font-bold ${
+                    i === 0
+                      ? "bg-yellow-100 border-2 border-yellow-400 text-yellow-900 text-xl"
+                      : "bg-purple-50"
+                  }`}
                 >
                   <span>
                     {i === 0
