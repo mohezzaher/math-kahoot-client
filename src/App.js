@@ -3,8 +3,7 @@ import io from "socket.io-client";
 import confetti from "canvas-confetti";
 import MathText from "./MathText";
 
-// إحضار الرابط من متغيرات البيئة أو استخدام رابط السيرفر المباشر كخيار احتياطي
-const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'https://chap-gentle-rabbit.abasthan.app';
+const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'https://aquizgame.bonto.run';
 
 const socket = io(SERVER_URL, {
   transports: ['websocket', 'polling']
