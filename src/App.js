@@ -8,7 +8,159 @@ const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'https://aquizgame.bonto.
 const socket = io(SERVER_URL, {
   transports: ['websocket', 'polling']
 });
+// مكون المحادثة الصوتية (WebRTC + Socket.io)
+function VoiceChat({ pin, nickname }) {
+  const [isMuted, setIsMuted] = useState(true);
+  const [isConnected, setIsConnected] = useState(false);
+  const localStreamRef = useRef(null);
+  const peersRef = useRef({}); // لتخزين الاتصالات مع باقي اللاعبين
+  const audioElementsRef = useRef({});
 
+  useEffect(() => {
+    // 1. استقبال طلبات اتصال الصوت من سيرفر الـ Socket
+    socket.on("user_joined_voice", async ({ socketId }) => {
+      const peer = createPeer(socketId, socket.id, localStreamRef.current);
+      peersRef.current[socketId] = peer;
+    });
+
+    socket.on("webrtc_offer", async ({ offer, from }) => {
+      const peer = addPeer(offer, from, localStreamRef.current);
+      peersRef.current[from] = peer;
+    });
+
+    socket.on("webrtc_answer", ({ answer, from }) => {
+      peersRef.current[from]?.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on("webrtc_ice_candidate", ({ candidate, from }) => {
+      peersRef.current[from]?.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    socket.on("user_left_voice", ({ socketId }) => {
+      if (peersRef.current[socketId]) {
+        peersRef.current[socketId].close();
+        delete peersRef.current[socketId];
+      }
+      if (audioElementsRef.current[socketId]) {
+        audioElementsRef.current[socketId].remove();
+        delete audioElementsRef.current[socketId];
+      }
+    });
+
+    return () => {
+      socket.off("user_joined_voice");
+      socket.off("webrtc_offer");
+      socket.off("webrtc_answer");
+      socket.off("webrtc_ice_candidate");
+      socket.off("user_left_voice");
+    };
+  }, []);
+
+  // تشغيل أو إيقاف المايك
+  const toggleVoice = async () => {
+    if (!isConnected) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStreamRef.current = stream;
+        setIsConnected(true);
+        setIsMuted(false);
+
+        // إعلام الغرفة بالانضمام للصوت
+        socket.emit("join_voice", { pin });
+      } catch (err) {
+        alert("تعذر الوصول إلى الميكروفون. يرجى إعطاء الصلاحية من المتصفح.");
+      }
+    } else {
+      const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = isMuted;
+        setIsMuted(!isMuted);
+      }
+    }
+  };
+
+  // إنشاء اتصال WebRTC جديد (بادئ الاتصال)
+  function createPeer(userToSignal, callerID, stream) {
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    if (stream) {
+      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+    }
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("webrtc_ice_candidate", { candidate: event.candidate, to: userToSignal });
+      }
+    };
+
+    peer.ontrack = (event) => {
+      playRemoteStream(userToSignal, event.streams[0]);
+    };
+
+    peer.createOffer().then((offer) => {
+      peer.setLocalDescription(offer);
+      socket.emit("webrtc_offer", { offer, to: userToSignal });
+    });
+
+    return peer;
+  }
+
+  // قبول اتصال WebRTC من لاعب آخر
+  function addPeer(incomingOffer, callerID, stream) {
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    if (stream) {
+      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+    }
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("webrtc_ice_candidate", { candidate: event.candidate, to: callerID });
+      }
+    };
+
+    peer.ontrack = (event) => {
+      playRemoteStream(callerID, event.streams[0]);
+    };
+
+    peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+    peer.createAnswer().then((answer) => {
+      peer.setLocalDescription(answer);
+      socket.emit("webrtc_answer", { answer, to: callerID });
+    });
+
+    return peer;
+  }
+
+  // تشغيل صوت اللاعب الآخر
+  function playRemoteStream(id, stream) {
+    if (!audioElementsRef.current[id]) {
+      const audio = new Audio();
+      audio.srcObject = stream;
+      audio.autoplay = true;
+      audioElementsRef.current[id] = audio;
+    }
+  }
+
+  return (
+    <button
+      onClick={toggleVoice}
+      className={`fixed bottom-16 left-4 z-40 px-3 py-2 rounded-full font-bold text-xs shadow-lg flex items-center gap-1.5 transition ${
+        !isConnected
+          ? "bg-gray-700 hover:bg-gray-800 text-white"
+          : isMuted
+          ? "bg-red-600 hover:bg-red-700 text-white"
+          : "bg-green-600 hover:bg-green-700 text-white animate-pulse"
+      }`}
+    >
+      {!isConnected ? "🎙️ تشغيل الصوت" : isMuted ? "🔇 المايك مكتوم" : "🎙️ المايك يعمل"}
+    </button>
+  );
+}
 // مكون نافذة المحادثة المحدث
 function ChatWindow({ pin, nickname }) {
   const [messages, setMessages] = useState([]);
@@ -269,7 +421,12 @@ function App() {
 
   return (
     <div className="min-h-screen bg-purple-900 text-white flex flex-col items-center justify-center p-4 dir-rtl relative">
-      {gameState !== "join" && <ChatWindow pin={pin} nickname={nickname} />}
+      {gameState !== "join" && (
+  <>
+    <ChatWindow pin={pin} nickname={nickname} />
+    <VoiceChat pin={pin} nickname={nickname} />
+  </>
+)}
 
       {/* 1. شاشة الانضمام */}
       {gameState === "join" && (
