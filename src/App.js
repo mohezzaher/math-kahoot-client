@@ -8,22 +8,88 @@ const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'https://aquizgame.bonto.
 const socket = io(SERVER_URL, {
   transports: ['websocket', 'polling']
 });
-// مكون المحادثة الصوتية (WebRTC + Socket.io)
+
+// مكون المحادثة الصوتية (WebRTC + Socket.io) - مُصلح
 function VoiceChat({ pin, nickname }) {
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const localStreamRef = useRef(null);
-  const peersRef = useRef({}); // لتخزين الاتصالات مع باقي اللاعبين
+  const peersRef = useRef({});
   const audioElementsRef = useRef({});
 
+  // إنشاء P2P Connection جديد
+  const createPeer = (userToSignal, stream) => {
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    if (stream) {
+      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+    }
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("webrtc_ice_candidate", { candidate: event.candidate, to: userToSignal });
+      }
+    };
+
+    peer.ontrack = (event) => {
+      playRemoteStream(userToSignal, event.streams[0]);
+    };
+
+    peer.createOffer().then((offer) => {
+      peer.setLocalDescription(offer);
+      socket.emit("webrtc_offer", { offer, to: userToSignal });
+    });
+
+    return peer;
+  };
+
+  // قبول الاتصال القادم
+  const addPeer = (incomingOffer, callerID, stream) => {
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    if (stream) {
+      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+    }
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("webrtc_ice_candidate", { candidate: event.candidate, to: callerID });
+      }
+    };
+
+    peer.ontrack = (event) => {
+      playRemoteStream(callerID, event.streams[0]);
+    };
+
+    peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
+    peer.createAnswer().then((answer) => {
+      peer.setLocalDescription(answer);
+      socket.emit("webrtc_answer", { answer, to: callerID });
+    });
+
+    return peer;
+  };
+
+  const playRemoteStream = (id, stream) => {
+    if (!audioElementsRef.current[id]) {
+      const audio = new Audio();
+      audio.srcObject = stream;
+      audio.autoplay = true;
+      audioElementsRef.current[id] = audio;
+    }
+  };
+
   useEffect(() => {
-    // 1. استقبال طلبات اتصال الصوت من سيرفر الـ Socket
-    socket.on("user_joined_voice", async ({ socketId }) => {
-      const peer = createPeer(socketId, socket.id, localStreamRef.current);
+    socket.on("user_joined_voice", ({ socketId }) => {
+      const peer = createPeer(socketId, localStreamRef.current);
       peersRef.current[socketId] = peer;
     });
 
-    socket.on("webrtc_offer", async ({ offer, from }) => {
+    socket.on("webrtc_offer", ({ offer, from }) => {
       const peer = addPeer(offer, from, localStreamRef.current);
       peersRef.current[from] = peer;
     });
@@ -53,10 +119,14 @@ function VoiceChat({ pin, nickname }) {
       socket.off("webrtc_answer");
       socket.off("webrtc_ice_candidate");
       socket.off("user_left_voice");
+      
+      // إيقاف ميكروفون المستخدم عند مغادرة الصفحة
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+      }
     };
   }, []);
 
-  // تشغيل أو إيقاف المايك
   const toggleVoice = async () => {
     if (!isConnected) {
       try {
@@ -65,7 +135,6 @@ function VoiceChat({ pin, nickname }) {
         setIsConnected(true);
         setIsMuted(false);
 
-        // إعلام الغرفة بالانضمام للصوت
         socket.emit("join_voice", { pin });
       } catch (err) {
         alert("تعذر الوصول إلى الميكروفون. يرجى إعطاء الصلاحية من المتصفح.");
@@ -79,77 +148,10 @@ function VoiceChat({ pin, nickname }) {
     }
   };
 
-  // إنشاء اتصال WebRTC جديد (بادئ الاتصال)
-  function createPeer(userToSignal, callerID, stream) {
-    const peer = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
-
-    if (stream) {
-      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-    }
-
-    peer.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit("webrtc_ice_candidate", { candidate: event.candidate, to: userToSignal });
-      }
-    };
-
-    peer.ontrack = (event) => {
-      playRemoteStream(userToSignal, event.streams[0]);
-    };
-
-    peer.createOffer().then((offer) => {
-      peer.setLocalDescription(offer);
-      socket.emit("webrtc_offer", { offer, to: userToSignal });
-    });
-
-    return peer;
-  }
-
-  // قبول اتصال WebRTC من لاعب آخر
-  function addPeer(incomingOffer, callerID, stream) {
-    const peer = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
-
-    if (stream) {
-      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-    }
-
-    peer.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit("webrtc_ice_candidate", { candidate: event.candidate, to: callerID });
-      }
-    };
-
-    peer.ontrack = (event) => {
-      playRemoteStream(callerID, event.streams[0]);
-    };
-
-    peer.setRemoteDescription(new RTCSessionDescription(incomingOffer));
-    peer.createAnswer().then((answer) => {
-      peer.setLocalDescription(answer);
-      socket.emit("webrtc_answer", { answer, to: callerID });
-    });
-
-    return peer;
-  }
-
-  // تشغيل صوت اللاعب الآخر
-  function playRemoteStream(id, stream) {
-    if (!audioElementsRef.current[id]) {
-      const audio = new Audio();
-      audio.srcObject = stream;
-      audio.autoplay = true;
-      audioElementsRef.current[id] = audio;
-    }
-  }
-
   return (
     <button
       onClick={toggleVoice}
-      className={`fixed bottom-16 left-4 z-40 px-3 py-2 rounded-full font-bold text-xs shadow-lg flex items-center gap-1.5 transition ${
+      className={`fixed bottom-20 left-4 z-40 px-3 py-2 rounded-full font-bold text-xs shadow-lg flex items-center gap-1.5 transition transform hover:scale-105 ${
         !isConnected
           ? "bg-gray-700 hover:bg-gray-800 text-white"
           : isMuted
@@ -161,7 +163,8 @@ function VoiceChat({ pin, nickname }) {
     </button>
   );
 }
-// مكون نافذة المحادثة المحدث
+
+// مكون نافذة المحادثة
 function ChatWindow({ pin, nickname }) {
   const [messages, setMessages] = useState([]);
   const [inputMsg, setInputMsg] = useState("");
@@ -195,12 +198,12 @@ function ChatWindow({ pin, nickname }) {
       {!isOpen ? (
         <button
           onClick={() => setIsOpen(true)}
-          className="chat-toggle-btn bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-bold transition transform hover:scale-105 text-sm"
+          className="fixed bottom-4 left-4 z-40 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-bold transition transform hover:scale-105 text-sm"
         >
           💬 الدردشة ({messages.length})
         </button>
       ) : (
-        <div className="chat-centered-modal bg-white text-gray-900 rounded-2xl border-2 border-purple-600 overflow-hidden">
+        <div className="fixed bottom-4 left-4 z-50 bg-white text-gray-900 rounded-2xl border-2 border-purple-600 overflow-hidden w-80 h-96 flex flex-col shadow-2xl">
           <div className="bg-purple-700 text-white p-3 flex justify-between items-center font-bold text-sm">
             <span>💬 محادثة الغرفة</span>
             <button
@@ -365,7 +368,6 @@ function App() {
   const handleStartGame = () =>
     socket.emit("start_game", { pin, questionCount });
 
-  // دعم إرسال الإجابة بناءً على النوع
   const handleSendAnswerValue = (val) => {
     if (selectedAnswer !== null) return;
     setSelectedAnswer(val);
@@ -394,16 +396,16 @@ function App() {
   const getPlayerBadge = (player) => {
     if (player.isCorrect === true) {
       return {
-        bg: "bg-green-600 border-2 border-green-300 text-white",
+        bg: "bg-green-600 border border-green-300 text-white",
         statusText: `✅ المركز ${player.answerOrder}`,
-        pointsText: `+${player.lastAddedPoints} نقطة`,
+        pointsText: `+${player.lastAddedPoints}`,
       };
     }
     if (player.isCorrect === false) {
       return {
-        bg: "bg-red-600 border-2 border-red-300 text-white",
+        bg: "bg-red-600 border border-red-300 text-white",
         statusText: `❌ المركز ${player.answerOrder}`,
-        pointsText: `+0 نقطة`,
+        pointsText: `+0`,
       };
     }
     return {
@@ -422,11 +424,11 @@ function App() {
   return (
     <div className="min-h-screen bg-purple-900 text-white flex flex-col items-center justify-center p-4 dir-rtl relative">
       {gameState !== "join" && (
-  <>
-    <ChatWindow pin={pin} nickname={nickname} />
-    <VoiceChat pin={pin} nickname={nickname} />
-  </>
-)}
+        <>
+          <ChatWindow pin={pin} nickname={nickname} />
+          <VoiceChat pin={pin} nickname={nickname} />
+        </>
+      )}
 
       {/* 1. شاشة الانضمام */}
       {gameState === "join" && (
@@ -548,33 +550,36 @@ function App() {
             </span>
           </div>
 
-          <div className="w-full bg-purple-950/70 p-4 rounded-xl mb-6 border border-purple-700">
-            <h3 className="text-sm font-bold text-purple-300 mb-3 text-center">
+          {/* شريط حالة اللاعبين المصغر لتوفير المساحة */}
+          <div className="w-full bg-purple-950/70 p-2.5 rounded-lg mb-4 border border-purple-700/60">
+            <h3 className="text-xs font-semibold text-purple-300 mb-2 text-center">
               حالة ونقاط اللاعبين المباشرة:
             </h3>
-            <div className="flex flex-wrap gap-3 justify-center">
+            <div className="flex flex-wrap gap-1.5 justify-center">
               {players.map((p, idx) => {
                 const badge = getPlayerBadge(p);
                 return (
                   <div
                     key={idx}
-                    className={`${badge.bg} px-4 py-2 rounded-xl flex items-center gap-3 shadow-lg transition-all duration-500 transform ${p.answerOrder ? "scale-105" : ""}`}
+                    className={`${badge.bg} px-2.5 py-1 rounded-lg flex items-center gap-2 shadow-sm transition-all duration-300 transform ${
+                      p.answerOrder ? "scale-105" : ""
+                    }`}
                   >
                     <div className="flex flex-col text-right">
-                      <span className="font-extrabold text-base">
+                      <span className="font-bold text-xs">
                         👤 {p.nickname}
                       </span>
-                      <span className="text-xs font-semibold opacity-90">
-                        المجموع: {p.score}
+                      <span className="text-[10px] opacity-80">
+                        {p.score} نقطة
                       </span>
                     </div>
 
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-black/20">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/20">
                         {badge.statusText}
                       </span>
                       {badge.pointsText && (
-                        <span className="text-xs font-extrabold px-2 py-0.5 rounded-md bg-yellow-400 text-gray-900 animate-bounce">
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-yellow-400 text-gray-900 animate-bounce">
                           {badge.pointsText}
                         </span>
                       )}
@@ -591,7 +596,7 @@ function App() {
             </h2>
           </div>
 
-          {/* نوع الخيارات المتعددة (MCQ) */}
+          {/* MCQ */}
           {qType === "mcq" && currentQuestion.options && (
             <div className="grid grid-cols-2 gap-4 w-full">
               {currentQuestion.options.map((option, index) => {
@@ -628,7 +633,7 @@ function App() {
             </div>
           )}
 
-          {/* نوع صح أو خطأ (True / False) */}
+          {/* True / False */}
           {qType === "true_false" && (
             <div className="grid grid-cols-2 gap-6 w-full">
               <button
@@ -660,7 +665,7 @@ function App() {
             </div>
           )}
 
-          {/* نوع الإدخال المباشر (Direct Input) */}
+          {/* Direct Input */}
           {qType === "direct_input" && (
             <form
               onSubmit={(e) => {
@@ -687,7 +692,7 @@ function App() {
             </form>
           )}
 
-          {/* عرض نتيجة الإجابة */}
+          {/* Feedback */}
           {answerFeedback && (
             <div className="mt-6 w-full max-w-2xl text-center font-bold text-xl">
               {answerFeedback.isCorrect ? (
