@@ -550,46 +550,6 @@ function App() {
             </span>
           </div>
 
-          {/* شريط حالة اللاعبين المصغر لتوفير المساحة */}
-          <div className="w-full bg-purple-950/70 p-2.5 rounded-lg mb-4 border border-purple-700/60">
-            <h3 className="text-xs font-semibold text-purple-300 mb-2 text-center">
-              حالة ونقاط اللاعبين المباشرة:
-            </h3>
-            <div className="flex flex-wrap gap-1.5 justify-center">
-              {players.map((p, idx) => {
-                const badge = getPlayerBadge(p);
-                return (
-                  <div
-                    key={idx}
-                    className={`${badge.bg} px-2.5 py-1 rounded-lg flex items-center gap-2 shadow-sm transition-all duration-300 transform ${
-                      p.answerOrder ? "scale-105" : ""
-                    }`}
-                  >
-                    <div className="flex flex-col text-right">
-                      <span className="font-bold text-xs">
-                        👤 {p.nickname}
-                      </span>
-                      <span className="text-[10px] opacity-80">
-                        {p.score} نقطة
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/20">
-                        {badge.statusText}
-                      </span>
-                      {badge.pointsText && (
-                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-yellow-400 text-gray-900 animate-bounce">
-                          {badge.pointsText}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="bg-white text-gray-900 w-full p-8 rounded-2xl text-center shadow-lg mb-6">
             <h2 className="text-3xl font-bold">
               <MathText text={currentQuestion.question} />
@@ -718,7 +678,45 @@ function App() {
           )}
         </div>
       )}
+   {/* شريط حالة اللاعبين المصغر لتوفير المساحة */}
+          <div className="w-full bg-purple-950/70 p-2.5 rounded-lg mb-4 border border-purple-700/60">
+            <h3 className="text-xs font-semibold text-purple-300 mb-2 text-center">
+              حالة ونقاط اللاعبين المباشرة:
+            </h3>
+            <div className="flex flex-wrap gap-1.5 justify-center">
+              {players.map((p, idx) => {
+                const badge = getPlayerBadge(p);
+                return (
+                  <div
+                    key={idx}
+                    className={`${badge.bg} px-2.5 py-1 rounded-lg flex items-center gap-2 shadow-sm transition-all duration-300 transform ${
+                      p.answerOrder ? "scale-105" : ""
+                    }`}
+                  >
+                    <div className="flex flex-col text-right">
+                      <span className="font-bold text-xs">
+                        👤 {p.nickname}
+                      </span>
+                      <span className="text-[10px] opacity-80">
+                        {p.score} نقطة
+                      </span>
+                    </div>
 
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-black/20">
+                        {badge.statusText}
+                      </span>
+                      {badge.pointsText && (
+                        <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-yellow-400 text-gray-900 animate-bounce">
+                          {badge.pointsText}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
       {/* 4. النتائج النهائية */}
       {gameState === "results" && (
         <div className="bg-white text-gray-900 p-8 rounded-2xl w-full max-w-lg text-center shadow-2xl">
