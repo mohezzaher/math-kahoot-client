@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import confetti from "canvas-confetti";
-import MathText from "./MathText";
+import Text from "./MathText";
 
 const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'https://aquizgame.bonto.run';
 
@@ -379,10 +379,10 @@ function App() {
   };
 
   const handleInvite = () => {
-    const inviteText = `انضم معي في لعبة  !Math Kahoot !\nرمز اللعبة (PIN): ${pin}\nالرابط: ${window.location.origin}`;
+    const inviteText = `انضم معي في لعبة  !اختبر ذكائك !\nرمز اللعبة (PIN): ${pin}\nالرابط: ${window.location.origin}`;
     if (navigator.share) {
       navigator.share({
-        title: "دعوة Math Kahoot",
+        title: "دعوة اختبر ذكائك",
         text: inviteText,
         url: window.location.origin,
       }).catch(() => {});
@@ -434,7 +434,7 @@ function App() {
       {gameState === "join" && (
         <div className="bg-white text-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md text-center">
           <h1 className="text-4xl font-extrabold text-purple-700 mb-6">
-             !Math Kahoot !
+             !اختبر ذكائك !
           </h1>
 
           {errorMessage && (
@@ -552,7 +552,7 @@ function App() {
 
           <div className="bg-white text-gray-900 w-full p-8 rounded-2xl text-center shadow-lg mb-6">
             <h2 className="text-3xl font-bold">
-              <MathText text={currentQuestion.question} />
+              <Text text={currentQuestion.question} />
             </h2>
           </div>
 
@@ -586,7 +586,7 @@ function App() {
                     onClick={() => handleSendAnswerValue(index)}
                     className={`${stateStyles} text-white p-6 rounded-xl text-2xl font-bold shadow-md transition-all duration-300 flex items-center justify-center gap-2`}
                   >
-                    <MathText text={option} />
+                    <Text text={option} />
                   </button>
                 );
               })}
