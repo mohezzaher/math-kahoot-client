@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import io from "socket.io-client";
 import confetti from "canvas-confetti";
 import Text from "./MathText";
@@ -17,8 +17,17 @@ function VoiceChat({ pin, nickname }) {
   const peersRef = useRef({});
   const audioElementsRef = useRef({});
 
+  const playRemoteStream = useCallback((id, stream) => {
+    if (!audioElementsRef.current[id]) {
+      const audio = new Audio();
+      audio.srcObject = stream;
+      audio.autoplay = true;
+      audioElementsRef.current[id] = audio;
+    }
+  }, []);
+
   // إنشاء P2P Connection جديد
-  const createPeer = (userToSignal, stream) => {
+  const createPeer = useCallback((userToSignal, stream) => {
     const peer = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
@@ -43,10 +52,10 @@ function VoiceChat({ pin, nickname }) {
     });
 
     return peer;
-  };
+  }, [playRemoteStream]);
 
   // قبول الاتصال القادم
-  const addPeer = (incomingOffer, callerID, stream) => {
+  const addPeer = useCallback((incomingOffer, callerID, stream) => {
     const peer = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
@@ -72,16 +81,7 @@ function VoiceChat({ pin, nickname }) {
     });
 
     return peer;
-  };
-
-  const playRemoteStream = (id, stream) => {
-    if (!audioElementsRef.current[id]) {
-      const audio = new Audio();
-      audio.srcObject = stream;
-      audio.autoplay = true;
-      audioElementsRef.current[id] = audio;
-    }
-  };
+  }, [playRemoteStream]);
 
   useEffect(() => {
     socket.on("user_joined_voice", ({ socketId }) => {
@@ -125,7 +125,7 @@ function VoiceChat({ pin, nickname }) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [addPeer, createPeer]);
 
   const toggleVoice = async () => {
     if (!isConnected) {
