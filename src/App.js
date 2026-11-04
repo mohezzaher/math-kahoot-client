@@ -379,7 +379,7 @@ function App() {
   };
 
   const handleInvite = () => {
-    const inviteText = `انضم معي في لعبة Math Kahoot!\nرمز اللعبة (PIN): ${pin}\nالرابط: ${window.location.origin}`;
+    const inviteText = `انضم معي في لعبة  !تواصل والعب\nرمز اللعبة (PIN): ${pin}\nالرابط: ${window.location.origin}`;
     if (navigator.share) {
       navigator.share({
         title: "دعوة Math Kahoot",
@@ -434,7 +434,7 @@ function App() {
       {gameState === "join" && (
         <div className="bg-white text-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md text-center">
           <h1 className="text-4xl font-extrabold text-purple-700 mb-6">
-            Math Kahoot!
+             !تواصل والعب
           </h1>
 
           {errorMessage && (
